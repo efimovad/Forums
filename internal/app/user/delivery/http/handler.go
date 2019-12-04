@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/pkg/errors"
 	"net/http"
+	"strings"
 )
 
 type Handler struct {
@@ -97,7 +98,14 @@ func (h * Handler) EditUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.usecase.Edit(name, newUser); err != nil {
-		general.Error(w, r, http.StatusNotFound, err)
+		if strings.Contains(err.Error(), user.NOT_FOUND_ERR) {
+			general.Error(w, r, http.StatusNotFound, err)
+		} else if strings.Contains(err.Error(), user.NICKNAME_CONFLICT) ||
+			strings.Contains(err.Error(), user.EMAIL_CONFLICT) {
+			general.Error(w,r, http.StatusConflict, err)
+		} else {
+			general.Error(w,r, http.StatusInternalServerError, err)
+		}
 		return
 	}
 

@@ -6,12 +6,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	NOT_FOUND_ERR = "Can't find user with nickname "
-	NICKNAME_CONFLICT = "Data conflict by nickname "
-	EMAIL_CONFLICT = "Data conflict by email "
-)
-
 
 type UserUcase struct {
 	repository user.Repository
@@ -54,22 +48,22 @@ func (u *UserUcase) FindByName(nickname string) (*models.User, error) {
 	return myUser, nil
 }
 
-func (u *UserUcase) Edit(name string, user *models.User) error {
+func (u *UserUcase) Edit(name string, user2edit *models.User) error {
 	currUser, err := u.repository.FindByName(name)
 	if err != nil {
-		return errors.New(NOT_FOUND_ERR + name)
+		return errors.New(user.NOT_FOUND_ERR + name)
 	}
 
-	user.Nickname = currUser.Nickname
+	user2edit.Nickname = currUser.Nickname
 
-	if currUser.Email != user.Email {
-		_, err := u.repository.FindByEmail(user.Email)
+	if currUser.Email != user2edit.Email {
+		_, err := u.repository.FindByEmail(user2edit.Email)
 		if err == nil {
-			return errors.New(EMAIL_CONFLICT + user.Email)
+			return errors.New(user.EMAIL_CONFLICT + user2edit.Email)
 		}
 	}
 
-	if err := u.repository.Edit(user); err != nil {
+	if err := u.repository.Edit(user2edit); err != nil {
 		return err
 	}
 
