@@ -1,6 +1,9 @@
 package app
 
 import (
+	general_handler "github.com/efimovad/Forums.git/internal/app/general/delivery/http"
+	general_rep "github.com/efimovad/Forums.git/internal/app/general/repository"
+	general_ucase "github.com/efimovad/Forums.git/internal/app/general/usecase"
 	user_handler "github.com/efimovad/Forums.git/internal/app/user/delivery/http"
 	user_rep "github.com/efimovad/Forums.git/internal/app/user/repository"
 	user_ucase "github.com/efimovad/Forums.git/internal/app/user/usecase"
@@ -27,10 +30,13 @@ func (s *Server) configure() error{
 		return errors.Wrap(err, "myStore.New()")
 	}
 	userRep := user_rep.NewUserRepository(myStore)
+	generalRep := general_rep.NewGeneralRepository(myStore)
 
 	userUcase := user_ucase.NewUserUsecase(userRep)
+	generalUcase := general_ucase.NewGeneralUsecase(generalRep)
 
 	user_handler.NewUserHandler(s.mux, userUcase, s.sessionStore)
+	general_handler.NewGeneralHandler(s.mux, generalUcase, s.sessionStore)
 
 	return nil
 }
