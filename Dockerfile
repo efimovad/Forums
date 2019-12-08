@@ -38,4 +38,4 @@ VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 #COPY --from=builder /usr/src/app/DB_TP .
 #COPY ./forum .
 
-CMD service postgresql start && make build && ./forum
+# CMD service postgresql start && make build && ./forum
