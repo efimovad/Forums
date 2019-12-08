@@ -11,10 +11,10 @@ type Config struct {
 
 func NewConfig() *Config {
 	return &Config{
-		BindAddr:		":8080",
+		BindAddr:		":5000",
 		LogLevel:		"debug",
 		SessionKey:		"jdfhdfdj",
-		DatabaseURL:	"host=localhost dbname=postgres sslmode=disable port=5432 password=1234 user=d",
+		DatabaseURL:	"dbname=docker sslmode=disable port=5432 password=docker user=docker",
 		TokenSecret:	"golangsecpark",
 	}
 }

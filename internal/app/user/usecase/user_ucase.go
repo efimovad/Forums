@@ -25,7 +25,7 @@ func (u * UserUcase) Create(user *models.User) ([]*models.User, error) {
 	}
 
 	user2, err := u.repository.FindByName(user.Nickname)
-	if  err == nil && user1.Email != user2.Email {
+	if  err == nil && user1 != nil && user2 != nil && user1.Email != user2.Email {
 		users = append(users, user2)
 	}
 

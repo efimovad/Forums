@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/pkg/errors"
+	"log"
 	"net/http"
 )
 
@@ -55,5 +56,6 @@ func Start() error {
 	if err := server.configure(); err != nil {
 		return errors.Wrap(err, "server.configure()")
 	}
+	log.Println("running server on ", server.config.BindAddr, "...")
 	return http.ListenAndServe(server.config.BindAddr, server)
 }

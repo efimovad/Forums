@@ -16,18 +16,18 @@ func NewUserRepository(db *sql.DB) user.Repository {
 
 func (r *UserRepository) Create(user *models.User) error {
 	return r.db.QueryRow(
-		"INSERT INTO users (email, about, fullname, nickname) VALUES ($1, $2, $3, $4) RETURNING nickname",
+		"INSERT INTO users (email, about, fullname, nickname) VALUES ($1, $2, $3, $4) RETURNING id",
 		user.Email,
 		user.About,
 		user.FullName,
 		user.Nickname,
-	).Scan(&user.Nickname)
+	).Scan(&user.ID)
 }
 
 func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	u := new(models.User)
 	if err := r.db.QueryRow(
-		"SELECT email, about, fullname, nickname FROM users WHERE email = $1",
+		"SELECT id, email, about, fullname, nickname FROM users WHERE email = $1",
 		email,
 	).Scan(
 		&u.Email,
@@ -43,9 +43,10 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 func (r *UserRepository) FindByName(nickname string) (*models.User, error) {
 	u := new(models.User)
 	if err := r.db.QueryRow(
-		"SELECT email, about, fullname, nickname FROM users WHERE nickname = $1",
+		"SELECT id, email, about, fullname, nickname FROM users WHERE nickname = $1",
 		nickname,
 	).Scan(
+		&u.ID,
 		&u.Email,
 		&u.About,
 		&u.FullName,
@@ -58,10 +59,10 @@ func (r *UserRepository) FindByName(nickname string) (*models.User, error) {
 
 func (r *UserRepository) Edit(user *models.User) error {
 	return r.db.QueryRow("UPDATE users SET email = $1, about = $2, fullname = $3 "+
-		"WHERE nickname = $4 RETURNING nickname",
+		"WHERE nickname = $4 RETURNING id",
 		user.Email,
 		user.About,
 		user.FullName,
 		user.Nickname,
-	).Scan(&user.Nickname)
+	).Scan(&user.ID)
 }
