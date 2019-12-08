@@ -37,6 +37,6 @@ VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 
 #COPY sunrise_db.sql .
 #COPY --from=builder /usr/src/app/DB_TP .
-COPY ./forum .
+#COPY ./forum .
 
-CMD service postgresql start && ./forum
+CMD service postgresql start && make build && ./forum
