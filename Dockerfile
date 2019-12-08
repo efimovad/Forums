@@ -3,7 +3,7 @@ FROM golang
 WORKDIR /Documents/technopark/tech_sem2/databases/workspace
 
 COPY go.mod .
-COPY go.sum .
+#COPY go.sum .
 RUN go mod download
 
 COPY . .
