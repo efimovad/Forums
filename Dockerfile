@@ -1,6 +1,6 @@
-FROM golang
+FROM golang:1.13-stretch AS builder
 
-WORKDIR ./Forums
+WORKDIR /usr/src/app
 
 COPY go.mod .
 RUN go mod download
@@ -19,7 +19,7 @@ ENV POSTGRES_USER docker
 ENV POSTGRES_PASSWORD docker
 EXPOSE $PORT
 
-RUN apt-get update && apt-get install -y postgresql-$PGVER
+RUN apt-get update && apt-get install -y postgresql-$PGVER && apt-get install -y build-essential
 
 USER postgres
 
@@ -35,7 +35,7 @@ RUN service postgresql start &&\
 VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 
 #COPY sunrise_db.sql .
-#COPY --from=builder /usr/src/app/DB_TP .
+COPY --from=builder /usr/src/app/Forums .
 #COPY ./forum .
 
-# CMD service postgresql start && make build && ./forum
+CMD service postgresql start && ./forum
