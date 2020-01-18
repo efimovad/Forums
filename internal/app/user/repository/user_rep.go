@@ -11,7 +11,7 @@ type UserRepository struct {
 }
 
 func NewUserRepository(db *sql.DB) user.Repository {
-	return &UserRepository{db}
+	return &UserRepository{ db}
 }
 
 func (r *UserRepository) Create(user *models.User) error {
@@ -27,9 +27,10 @@ func (r *UserRepository) Create(user *models.User) error {
 func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	u := new(models.User)
 	if err := r.db.QueryRow(
-		"SELECT id, email, about, fullname, nickname FROM users WHERE email = $1",
+		"SELECT id, email, about, fullname, nickname FROM users WHERE LOWER(email) = LOWER($1)",
 		email,
 	).Scan(
+		&u.ID,
 		&u.Email,
 		&u.About,
 		&u.FullName,
@@ -43,7 +44,7 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 func (r *UserRepository) FindByName(nickname string) (*models.User, error) {
 	u := new(models.User)
 	if err := r.db.QueryRow(
-		"SELECT id, email, about, fullname, nickname FROM users WHERE nickname = $1",
+		"SELECT id, email, about, fullname, nickname FROM users WHERE LOWER(nickname) = LOWER($1)",
 		nickname,
 	).Scan(
 		&u.ID,

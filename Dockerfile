@@ -19,6 +19,8 @@ ENV POSTGRES_USER docker
 ENV POSTGRES_PASSWORD docker
 EXPOSE $PORT
 
+EXPOSE 5432
+
 RUN apt-get update && apt-get install -y postgresql-$PGVER && apt-get install -y build-essential
 
 USER postgres
@@ -35,7 +37,8 @@ RUN service postgresql start &&\
 VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 
 #COPY sunrise_db.sql .
-COPY --from=builder /usr/src/app/Forums .
+CMD ls /usr/src/app/
+COPY --from=builder /usr/src/app/forum .
 #COPY ./forum .
 
 CMD service postgresql start && ./forum

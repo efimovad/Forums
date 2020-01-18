@@ -23,9 +23,14 @@ func NewUserHandler(m *mux.Router, u user.Usecase, sessionStore sessions.Store) 
 		sessionStore:   sessionStore,
 	}
 
-	m.HandleFunc("/user/{nickname}/create", handler.CreateUser).Methods(http.MethodPost)
-	m.HandleFunc("/user/{nickname}/profile", handler.GetUser).Methods(http.MethodGet)
-	m.HandleFunc("/user/{nickname}/profile", handler.EditUser).Methods(http.MethodPost)
+	m.HandleFunc("/", handler.MainHandler)
+	m.HandleFunc("/api/user/{nickname}/create", handler.CreateUser).Methods(http.MethodPost)
+	m.HandleFunc("/api/user/{nickname}/profile", handler.GetUser).Methods(http.MethodGet)
+	m.HandleFunc("/api/user/{nickname}/profile", handler.EditUser).Methods(http.MethodPost)
+}
+
+func (h *Handler) MainHandler(w http.ResponseWriter, r *http.Request) {
+	general.Respond(w, r, http.StatusOK, "HELLO FROM SERVER")
 }
 
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +58,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	users, err := h.usecase.Create(newUser)
 	if err != nil {
-		general.Respond(w, r, http.StatusConflict, users)
+		general.Respond(w, r, http.StatusConflict, &users)
 		return
 	}
 	general.Respond(w, r, http.StatusCreated, newUser)

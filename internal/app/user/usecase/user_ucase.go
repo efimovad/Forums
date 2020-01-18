@@ -25,7 +25,7 @@ func (u * UserUcase) Create(user *models.User) ([]*models.User, error) {
 	}
 
 	user2, err := u.repository.FindByName(user.Nickname)
-	if  err == nil && user1 != nil && user2 != nil && user1.Email != user2.Email {
+	if  err == nil && (user1 == nil || user1.Email != user2.Email) {
 		users = append(users, user2)
 	}
 
@@ -61,6 +61,18 @@ func (u *UserUcase) Edit(name string, user2edit *models.User) error {
 		if err == nil {
 			return errors.New(user.EMAIL_CONFLICT + user2edit.Email)
 		}
+	}
+
+	if user2edit.Email == "" {
+		user2edit.Email = currUser.Email
+	}
+
+	if user2edit.About == "" {
+		user2edit.About = currUser.About
+	}
+
+	if user2edit.FullName == "" {
+		user2edit.FullName = currUser.FullName
 	}
 
 	if err := u.repository.Edit(user2edit); err != nil {

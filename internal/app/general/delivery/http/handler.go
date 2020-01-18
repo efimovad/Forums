@@ -18,8 +18,8 @@ func NewGeneralHandler(m *mux.Router, u general.Usecase, sessionStore sessions.S
 		sessionStore:   sessionStore,
 	}
 
-	m.HandleFunc("/service/clear", handler.ClearService).Methods(http.MethodPost)
-	m.HandleFunc("/service/status", handler.GetServiceStatus).Methods(http.MethodGet)
+	m.HandleFunc("/api/service/clear", handler.ClearService).Methods(http.MethodPost)
+	m.HandleFunc("/api/service/status", handler.GetServiceStatus).Methods(http.MethodGet)
 }
 
 func (h *Handler) ClearService(w http.ResponseWriter, r *http.Request) {
