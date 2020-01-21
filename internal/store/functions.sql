@@ -1,9 +1,14 @@
+ALTER SEQUENCE post_path RESTART;
+
 DROP TRIGGER IF EXISTS on_vote_insert ON votes;
 DROP TRIGGER IF EXISTS on_vote_update ON votes;
 
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_nickname_thread_unique
     ON votes (LOWER(nickname), thread);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname
+    ON users (LOWER(nickname));
 
 CREATE OR REPLACE FUNCTION fn_update_thread_votes_ins()
     RETURNS TRIGGER AS '

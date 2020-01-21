@@ -375,12 +375,12 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 	} else if params.Sort == "parent_tree" {
 		rows, err = r.db.Query(
 			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts 
-						WHERE substring(path,1,7) IN (
+						WHERE substring(path,1,9) IN (
 						      (SELECT path FROM posts WHERE parent = 0 AND thread = $1 AND (
 						        ($2 AND NOT $5 AND created >= $3) OR 
 						        ($2 AND $5 AND created <= $3) OR
 						        (NOT $2 AND NOT $5 AND $4 > 0 AND path > (SELECT path FROM posts WHERE id = $4)) OR 
-						    	(NOT $2 AND $5 AND $4 > 0 AND path < (SELECT substring(path,1,7) FROM posts WHERE id = $4)) OR
+						    	(NOT $2 AND $5 AND $4 > 0 AND path < (SELECT substring(path,1,9) FROM posts WHERE id = $4)) OR
 						       	(NOT $2 AND $4 = 0))
 						       	ORDER BY
 						      		CASE WHEN NOT $5 THEN path END,
@@ -388,7 +388,7 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 						        LIMIT $6))
 						ORDER BY 
 						         CASE WHEN NOT $5 THEN path END,
-						         CASE WHEN $5 THEN substring(path,1,7) END DESC, path`,
+						         CASE WHEN $5 THEN substring(path,1,9) END DESC, path`,
 			thread.ID, sinceIsDate, t, sinceId, params.Desc, params.Limit)
 	} else {
 		rows, err = r.db.Query(

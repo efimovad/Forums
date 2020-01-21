@@ -91,15 +91,9 @@ func (u *ForumUcase) CreatePosts(currForum string, posts []*models.Post) error {
 		return err
 	}
 
-	//created := time.Now().UTC()
 	for _, elem := range posts {
-		if elem.Slug != "" {
-			if _, err := u.repository.FindPostBySlug(elem.Slug); err != nil {
-				return errors.New("conflict")
-			}
-		}
-
 		var parent *models.Post
+
 		if elem.Parent != 0 {
 			parent, err = u.repository.FindPost(elem.Parent)
 			if err != nil {
@@ -119,7 +113,6 @@ func (u *ForumUcase) CreatePosts(currForum string, posts []*models.Post) error {
 		elem.Thread = t.ID
 		elem.Forum = t.Forum
 		elem.IsEdited = false
-		//elem.Created = created
 	}
 
 	err = u.repository.CreatePosts(posts)
