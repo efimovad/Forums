@@ -6,6 +6,7 @@ import (
 	"github.com/efimovad/Forums.git/internal/models"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -47,13 +48,18 @@ func (r *Repository) CreateThread(thread *models.Thread) error {
 func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 	f := new(models.Forum)
 	if err := r.db.QueryRow(
-		"SELECT id, slug, title, \"user\" FROM forums WHERE LOWER(slug) = LOWER($1)",
+		"SELECT id, slug, title, \"user\", " +
+			"(SELECT COUNT(*) FROM threads WHERE LOWER(forum) = LOWER($1)), " +
+			"(SELECT COUNT(*) FROM posts WHERE LOWER(forum) = LOWER($1)) " +
+			"FROM forums WHERE LOWER(slug) = LOWER($1)",
 		slug,
 	).Scan(
 		&f.ID,
 		&f.Slug,
 		&f.Title,
 		&f.User,
+		&f.Threads,
+		&f.Posts,
 	); err != nil {
 		return nil, err
 	}
@@ -182,7 +188,8 @@ func (r *Repository) FindThreadBySlug(slug string) (*models.Thread, error) {
 
 func (r *Repository) UpdateThread(thread *models.Thread) error {
 	return r.db.QueryRow(
-		"UPDATE threads SET votes = $1, title = $2, message = $3 WHERE id = $4 RETURNING id",
+		`UPDATE threads SET votes = $1, title = $2, message = $3 
+				WHERE id = $4 RETURNING id`,
 		thread.Votes,
 		thread.Title,
 		thread.Message,
@@ -190,19 +197,10 @@ func (r *Repository) UpdateThread(thread *models.Thread) error {
 	).Scan(&thread.ID)
 }
 
-func Num2Str(num int64) string {
-	if num == 0 {
-		return ""
-	}
-	res := strconv.FormatInt(num, 10)
-	for i := 0; i < MaxPostNum - len(res); i++ {
-		res = "0" + res
-	}
-	return res
-}
-
 func (r * Repository) CreatePosts(posts []*models.Post) error {
+	created := time.Now().UTC()
 	for _, elem := range posts {
+		elem.Created = created
 		err := 	r.db.QueryRow(
 			"INSERT INTO posts (path, author, created, forum, isEdited, message, parent, thread, slug) " +
 				"VALUES (" +
@@ -268,6 +266,15 @@ func (r *Repository) FindPostBySlug(slug string) (*models.Post, error) {
 	return p, nil
 }
 
+func (r *Repository) UpdatePost(post *models.Post) error {
+	return r.db.QueryRow(
+		"UPDATE posts SET message = $1, isEdited = $2 WHERE id = $3 RETURNING id",
+		post.Message,
+		post.IsEdited,
+		post.ID,
+	).Scan(&post.ID)
+}
+
 func (r *Repository) CreateVote(vote *models.Vote) error {
 	return r.db.QueryRow(
 		"INSERT INTO votes (nickname, vote, thread) VALUES ($1, $2, $3) RETURNING id",
@@ -324,10 +331,9 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 		}
 	}
 
-	log.Println(params)
 	if params.Sort == "tree" {
 		rows, err = r.db.Query(
-			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug, path FROM posts 
+			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts 
 						WHERE thread = $1 AND 
 						      (($2 AND NOT $5 AND created >= $3) OR 
 						       ($2 AND $5 AND created <= $3) OR 
@@ -340,121 +346,37 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 						LIMIT $6;`,
 			thread.ID, sinceIsDate, t, sinceId, params.Desc, params.Limit)
 	} else if params.Sort == "parent_tree" {
-		log.Println("$2:", sinceIsDate, "$3:", t, "$4:", sinceId, "$5:", params.Desc, "$6:", params.Limit)
 		rows, err = r.db.Query(
-			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug, path FROM posts 
-						WHERE thread = $1 AND 
-						      (($2 AND NOT $5 AND created >= $3) OR 
-						       ($2 AND $5 AND created <= $3) OR 
-						       (NOT $2 AND NOT $5 AND $4 > 0 AND path > (SELECT path FROM posts WHERE id = $4) AND 
-						        	substring(path from 1 for 6) in (select path from posts where parent = 0 and path > (SELECT path FROM posts WHERE id = $4) LIMIT $6)) OR 
-						       (NOT $2 AND $5 AND $4 > 0 AND path < (SELECT path FROM posts WHERE id = $4)) OR 
-						       (NOT $2 AND $4 = 0 AND path <= (SELECT MAX(b.path) || '999999'  from (SELECT path from posts where parent = 0 ORDER BY PATH LIMIT $6) b)::text ))
+			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts 
+						WHERE substring(path,1,6) IN (
+						      (SELECT path FROM posts WHERE parent = 0 AND thread = $1 AND (
+						        ($2 AND NOT $5 AND created >= $3) OR 
+						        ($2 AND $5 AND created <= $3) OR
+						        (NOT $2 AND NOT $5 AND $4 > 0 AND path > (SELECT path FROM posts WHERE id = $4)) OR 
+						    	(NOT $2 AND $5 AND $4 > 0 AND path < (SELECT substring(path,1,6) FROM posts WHERE id = $4)) OR
+						       	(NOT $2 AND $4 = 0))
+						       	ORDER BY
+						      		CASE WHEN NOT $5 THEN path END,
+						       		CASE WHEN $5 THEN path END DESC
+						        LIMIT $6))
 						ORDER BY 
 						         CASE WHEN NOT $5 THEN path END,
 						         CASE WHEN $5 THEN substring(path from 1 for 6) END DESC, path`,
 			thread.ID, sinceIsDate, t, sinceId, params.Desc, params.Limit)
-		/*if params.Since != "" {
-			if !params.Desc {
-				rows, err = r.db.Query(
-					"SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts "+
-						"WHERE thread = $1 AND created >= $2"+
-						"ORDER BY path ASC, id ASC " +
-						"LIMIT CASE WHEN $3 > 0 THEN $3 END;",
-					thread.ID, t, params.Limit)
-			} else {
-				rows, err = r.db.Query(
-					"WITH RECURSIVE T (author, created, forum, id, isEdited, message, parent, thread, PATHSTR, LEVEL, path ) " +
-						"AS ( " +
-						"SELECT T1.author, T1.created, T1.forum, T1.id, T1.isEdited, T1.message, T1.parent, T1.thread, " +
-						"CAST (T1.path[1] AS VARCHAR (50)) as PATHSTR, 1, T1.path " +
-						"FROM posts AS T1 WHERE T1.parent = 0 AND T1.thread = $1 AND created <= $2" +
-						"UNION " +
-						"SELECT  T2.author, T2.created, T2.forum, T2.id, T2.isEdited, T2.message, T2.parent, T2.thread, " +
-						"CAST (T.PATHSTR || T2.path[T.LEVEL + 1] AS VARCHAR(50)), LEVEL + 1, T2.path " +
-						"FROM posts AS T2 " +
-						"INNER JOIN T " +
-						"ON (T.id = T2.parent) " +
-						") " +
-						"SELECT author, created, forum, id, isEdited, message, parent, thread, slug " +
-						"FROM T " +
-						"ORDER BY T.path[1] ASC, T.PATHSTR DESC " +
-						"LIMIT CASE WHEN $3 > 0 THEN $3 END;",
-					thread.ID, t, params.Limit)
-			}
-
-		} else {
-			if params.Desc {
-				rows, err = r.db.Query(
-					"WITH RECURSIVE T (id, author, created, forum, isEdited, message, parent, thread, PATHSTR, LEVEL, path, slug ) "+
-						"AS ( "+
-						"SELECT T1.id, T1.author, T1.created, T1.forum, T1.isEdited, T1.message, T1.parent, T1.thread, "+
-						"CAST (T1.path[1] AS VARCHAR (50)) as PATHSTR, 1, T1.path, T1.slug "+
-						"FROM posts AS T1 WHERE T1.parent = 0 AND T1.thread = $1 "+
-						"UNION "+
-						"SELECT  T2.id, T2.author, T2.created, T2.forum, T2.isEdited, T2.message, T2.parent, T2.thread, "+
-						"CAST (T.PATHSTR || T2.path[T.LEVEL + 1] AS VARCHAR(50)), LEVEL + 1, T2.path, T2.slug "+
-						"FROM posts AS T2 "+
-						"INNER JOIN T "+
-						"ON (T.id = T2.parent) "+
-						") "+
-						"SELECT id, author, created, forum, isEdited, message, parent, thread, slug "+
-						"FROM T "+
-						"ORDER BY T.path[1] DESC, LENGTH(T.PATHSTR) ASC, T.PATHSTR ASC "+
-						"LIMIT CASE WHEN $2 > 0 THEN $2 END;",
-					thread.ID, params.Limit)
-			} else {
-				rows, err = r.db.Query(
-					"WITH RECURSIVE T (id, author, created, forum, isEdited, message, parent, thread, PATHSTR, LEVEL, path, slug ) "+
-						"AS ( "+
-						"SELECT T1.id, T1.author, T1.created, T1.forum, T1.isEdited, T1.message, T1.parent, T1.thread, " +
-						"CAST (T1.path[1] AS VARCHAR (50)) as PATHSTR, 1, T1.path, T1.slug " +
-						"FROM posts AS T1 WHERE T1.parent = 0 AND T1.thread = $1 " +
-						"UNION " +
-						"SELECT T2.id, T2.author, T2.created, T2.forum, T2.isEdited, T2.message, T2.parent, T2.thread, " +
-						"CAST (T.PATHSTR || T2.path[T.LEVEL + 1] AS VARCHAR(50)), LEVEL + 1, T2.path, T2.slug "+
-						"FROM posts AS T2 " +
-						"INNER JOIN T " +
-						"ON (T.id = T2.parent) " +
-						") " +
-						"SELECT id, author, created, forum, isEdited, message, parent, thread, slug " +
-						"FROM T " +
-						"ORDER BY T.path[1] ASC, LENGTH(T.PATHSTR) ASC, T.PATHSTR ASC " +
-						"LIMIT CASE WHEN $2 > 0 THEN $2 END;",
-					thread.ID, params.Limit)
-			}
-		}*/
 	} else {
-		if params.Since != "" {
-			log.Println(t)
-			if !params.Desc {
-				rows, err = r.db.Query(
-					"SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts "+
-						"WHERE thread = $1 AND " +
-						"($2 = 0 OR id > $2) "+
-						"ORDER BY id ASC " +
-						"LIMIT CASE WHEN $3 > 0 THEN $3 END;",
-					thread.ID, sinceId, params.Limit)
-			} else {
-				rows, err = r.db.Query(
-					"SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts "+
-						"WHERE thread = $1 AND " +
-						"($2 = 0 OR id < $2) "+
-						"ORDER BY id DESC " +
-						"LIMIT CASE WHEN $3 > 0 THEN $3 END;",
-					thread.ID, sinceId, params.Limit)
-			}
-
-		} else {
-			rows, err = r.db.Query(
-				"SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts "+
-					"WHERE thread = $1"+
-					"ORDER BY "+
-					"CASE WHEN $2 THEN id END DESC, "+
-					"CASE WHEN NOT $2 THEN id END ASC "+
-					"LIMIT CASE WHEN $3 > 0 THEN $3 END;",
-				thread.ID, params.Desc, params.Limit)
-		}
+		rows, err = r.db.Query(
+			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts 
+						WHERE thread = $1 AND 
+						      (($2 AND NOT $5 AND created >= $3) OR 
+						       ($2 AND $5 AND created <= $3) OR 
+						       (NOT $2 AND NOT $5 AND $4 > 0 AND id > $4) OR 
+						       (NOT $2 AND $5 AND $4 > 0 AND id < $4) OR 
+						       (NOT $2 AND $4 = 0))
+						ORDER BY 
+						         CASE WHEN NOT $5 THEN id END,
+						         CASE WHEN $5 THEN id END DESC
+						LIMIT $6;`,
+			thread.ID, sinceIsDate, t, sinceId, params.Desc, params.Limit)
 	}
 
 	if err != nil {
@@ -464,19 +386,11 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 	for rows.Next() {
 		p := new(models.Post)
 
-		if params.Sort == "tree" || params.Sort == "parent_tree" {
-			var path string
-			err := rows.Scan(&p.ID, &p.Author, &p.Created, &p.Forum, &p.IsEdited, &p.Message, &p.Parent, &p.Thread, &p.Slug, &path)
-			if err != nil {
-				return nil, err
-			}
-			log.Println(path)
-		} else {
-			err := rows.Scan(&p.ID, &p.Author, &p.Created, &p.Forum, &p.IsEdited, &p.Message, &p.Parent, &p.Thread, &p.Slug)
-			if err != nil {
-				return nil, err
-			}
+		err := rows.Scan(&p.ID, &p.Author, &p.Created, &p.Forum, &p.IsEdited, &p.Message, &p.Parent, &p.Thread, &p.Slug)
+		if err != nil {
+			return nil, err
 		}
+
 		posts = append(posts, p)
 	}
 
@@ -485,4 +399,71 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 	}
 
 	return posts, nil
+}
+
+func (r *Repository) GetUsers(slug string, params models.ListParameters) ([]*models.User, error) {
+	var err error
+	var rows *sql.Rows
+	var users []*models.User
+
+	log.Println(params)
+
+	rows, err = r.db.Query(
+		`SELECT R.nickname, R.fullname, R.about, R.email FROM 
+            	(
+            	    SELECT U.nickname, U.fullname, U.about, U.email 
+					FROM users AS U
+					INNER JOIN (SELECT author FROM threads WHERE LOWER(forum) = $1) AS T
+					ON LOWER(T.author) = LOWER(U.nickname)
+					WHERE ($2 = '' OR (NOT $3 AND LOWER(U.nickname) > $2) OR ($3 AND LOWER(U.nickname) < $2))
+					UNION
+					SELECT U.nickname, U.fullname, U.about, U.email 
+					FROM users AS U
+					INNER JOIN (SELECT author FROM posts WHERE LOWER(forum) = $1) AS P
+					ON LOWER(P.author) = LOWER(U.nickname)
+					WHERE ($2 = '' OR (NOT $3 AND LOWER(U.nickname) > $2) OR ($3 AND LOWER(U.nickname) < $2))
+            	) AS R				
+				GROUP BY R.nickname, R.fullname, R.about, R.email
+				ORDER BY 
+				         CASE WHEN NOT $3 THEN LOWER(R.nickname) END,
+				         CASE WHEN $3 THEN LOWER(R.nickname) END DESC
+				LIMIT CASE WHEN $4 > 0 THEN $4 END;`,
+		strings.ToLower(slug), strings.ToLower(params.Since), params.Desc, params.Limit)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		item := new(models.User)
+
+		err := rows.Scan(&item.Nickname, &item.FullName, &item.About, &item.Email)
+		if err != nil {
+			return nil, err
+		}
+
+		users = append(users, item)
+	}
+
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+func (r *Repository) FindUser(nickname string) (*models.User, error) {
+	u := new(models.User)
+	if err := r.db.QueryRow(
+		"SELECT id, email, about, fullname, nickname FROM users WHERE LOWER(nickname) = LOWER($1)",
+		nickname,
+	).Scan(
+		&u.ID,
+		&u.Email,
+		&u.About,
+		&u.FullName,
+		&u.Nickname,
+	); err != nil {
+		return nil, err
+	}
+	return u, nil
 }

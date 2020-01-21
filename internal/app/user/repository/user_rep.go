@@ -6,15 +6,15 @@ import (
 	"github.com/efimovad/Forums.git/internal/models"
 )
 
-type UserRepository struct {
+type Repository struct {
 	db *sql.DB
 }
 
 func NewUserRepository(db *sql.DB) user.Repository {
-	return &UserRepository{ db}
+	return &Repository{db}
 }
 
-func (r *UserRepository) Create(user *models.User) error {
+func (r *Repository) Create(user *models.User) error {
 	return r.db.QueryRow(
 		"INSERT INTO users (email, about, fullname, nickname) VALUES ($1, $2, $3, $4) RETURNING id",
 		user.Email,
@@ -24,7 +24,7 @@ func (r *UserRepository) Create(user *models.User) error {
 	).Scan(&user.ID)
 }
 
-func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
+func (r *Repository) FindByEmail(email string) (*models.User, error) {
 	u := new(models.User)
 	if err := r.db.QueryRow(
 		"SELECT id, email, about, fullname, nickname FROM users WHERE LOWER(email) = LOWER($1)",
@@ -41,7 +41,7 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	return u, nil
 }
 
-func (r *UserRepository) FindByName(nickname string) (*models.User, error) {
+func (r *Repository) FindByName(nickname string) (*models.User, error) {
 	u := new(models.User)
 	if err := r.db.QueryRow(
 		"SELECT id, email, about, fullname, nickname FROM users WHERE LOWER(nickname) = LOWER($1)",
@@ -58,7 +58,7 @@ func (r *UserRepository) FindByName(nickname string) (*models.User, error) {
 	return u, nil
 }
 
-func (r *UserRepository) Edit(user *models.User) error {
+func (r *Repository) Edit(user *models.User) error {
 	return r.db.QueryRow("UPDATE users SET email = $1, about = $2, fullname = $3 "+
 		"WHERE nickname = $4 RETURNING id",
 		user.Email,

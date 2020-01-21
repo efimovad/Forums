@@ -15,7 +15,18 @@ func NewGeneralRepository(db *sql.DB) general.Repository {
 }
 
 func (r *Repository) DropAll() error {
-	// TODO: add all tables
+	if _, err := r.db.Exec("DELETE FROM posts;"); err != nil {
+		return err
+	}
+
+	if _, err := r.db.Exec("DELETE FROM threads;"); err != nil {
+		return err
+	}
+
+	if _, err := r.db.Exec("DELETE FROM forums;"); err != nil {
+		return err
+	}
+
 	if _, err := r.db.Exec("DELETE FROM users;"); err != nil {
 		return err
 	}
@@ -26,7 +37,23 @@ func (r *Repository) DropAll() error {
 func (r *Repository) GetStatus() (*models.ServiceInfo, error) {
 	// TODO: add all tables
 	info := new(models.ServiceInfo)
-	if err := r.db.QueryRow("SELECT COUNT(*) FROM users;").Scan(&info.User); err != nil {
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM users;`).
+		Scan(&info.User); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM threads;`).
+		Scan(&info.Thread); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM posts;`).
+		Scan(&info.Post); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM forums;`).
+		Scan(&info.Forum); err != nil {
 		return nil, err
 	}
 

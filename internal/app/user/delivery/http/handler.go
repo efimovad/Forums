@@ -116,4 +116,3 @@ func (h * Handler) EditUser(w http.ResponseWriter, r *http.Request) {
 
 	general.Respond(w, r, http.StatusOK, newUser)
 }
-

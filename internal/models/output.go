@@ -6,3 +6,10 @@ type ServiceInfo struct {
 	Thread	int64	`json:"thread"`
 	User	int64	`json:"user"`
 }
+
+type Combine struct {
+	Post *Post `json:"post"`
+	Forum *Forum `json:"forum"`
+	Thread *Thread `json:"thread"`
+	Author *User `json:"author"`
+}

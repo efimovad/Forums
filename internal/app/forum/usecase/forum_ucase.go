@@ -6,7 +6,7 @@ import (
 	"github.com/efimovad/Forums.git/internal/models"
 	"github.com/pkg/errors"
 	"strconv"
-	"time"
+	"strings"
 )
 
 type ForumUcase struct {
@@ -86,10 +86,10 @@ func (u *ForumUcase) GetThreads(slug string, params *models.ListParameters) ([]*
 func (u *ForumUcase) CreatePosts(currForum string, posts []*models.Post) error {
 	t, err := u.GetThread(currForum)
 	if err != nil {
-		return errors.Wrap(errors.New(forum.NOT_FOUND), "forumRep.FindBySlug()")
+		return err
 	}
 
-	created := time.Now().UTC()
+	//created := time.Now().UTC()
 	for _, elem := range posts {
 		if elem.Slug != "" {
 			if _, err := u.repository.FindPostBySlug(elem.Slug); err != nil {
@@ -97,21 +97,27 @@ func (u *ForumUcase) CreatePosts(currForum string, posts []*models.Post) error {
 			}
 		}
 
+		var parent *models.Post
 		if elem.Parent != 0 {
-			if _, err := u.repository.FindPost(elem.Parent); err != nil {
-				return err
+			parent, err = u.repository.FindPost(elem.Parent)
+			if err != nil {
+				return errors.New(forum.PARENT_POST_CONFLICT)
 			}
+		}
+
+		if parent != nil && parent.Thread != t.ID {
+			return errors.New(forum.PARENT_POST_CONFLICT)
 		}
 
 		_, err = u.userRep.FindByName(elem.Author)
 		if err != nil {
-			return errors.Wrap(errors.New(forum.NOT_FOUND_ERR), "userRep.FindByName()")
+			return errors.Wrap(errors.New(forum.NOT_FOUND_ERR + elem.Author), "userRep.FindByName()")
 		}
 
 		elem.Thread = t.ID
 		elem.Forum = t.Forum
 		elem.IsEdited = false
-		elem.Created = created
+		//elem.Created = created
 	}
 
 	err = u.repository.CreatePosts(posts)
@@ -126,6 +132,11 @@ func (u *ForumUcase) CreateVote(vote *models.Vote) (*models.Thread, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if _, err = u.repository.FindUser(vote.Nickname); err != nil {
+		return nil, errors.New("Can't find user by nickname: " + vote.Nickname)
+	}
+
 	vote.Thread = thread.Slug
 
 	v, err := u.repository.FindVote(vote.Thread, vote.Nickname)
@@ -151,29 +162,58 @@ func (u *ForumUcase) CreateVote(vote *models.Vote) (*models.Thread, error) {
 }
 
 func (u *ForumUcase) GetThread(currThread string) (*models.Thread, error) {
-	var threadFound bool
 	var thread *models.Thread
 
 	id, err := strconv.ParseInt(currThread, 10, 64)
 	if err == nil {
 		thread, err = u.repository.FindThread(id)
-		if err == nil {
-			threadFound = true
+		if err != nil {
+			return nil, errors.New("Can't find post thread by id: " + strconv.FormatInt(id, 10))
 		}
+		return thread, nil
 	}
 
-	if !threadFound {
-		thread, err = u.repository.FindThreadBySlug(currThread)
-		if err == nil {
-			threadFound = true
-		}
+	thread, err = u.repository.FindThreadBySlug(currThread)
+	if err != nil {
+		return nil, errors.New("Can't find post thread by slug: " + currThread)
+	}
+	return thread, nil
+}
+
+func (u *ForumUcase) UpdateThread(currThread string, thread *models.Thread) (*models.Thread, error) {
+	var exThread *models.Thread
+	id, err := strconv.ParseInt(currThread, 10, 64)
+	if err == nil {
+		exThread, err = u.repository.FindThread(id)
+	} else {
+		exThread, err = u.repository.FindThreadBySlug(currThread)
 	}
 
-	if !threadFound {
+	if err != nil {
 		return nil, errors.New(forum.THREAD_NOT_FOUND)
 	}
 
-	return thread, nil
+	//log.Println("EXTHREAD", exThread)
+	//log.Println("MESSAGE", thread.Message)
+	//log.Println("TITLE", thread.Title)
+
+	if thread.Title == "" && thread.Message == "" {
+		return exThread, nil
+	}
+
+	if thread.Message != "" {
+		exThread.Message = thread.Message
+	}
+
+	if thread.Title != "" {
+		exThread.Title = thread.Title
+	}
+
+	if err = u.repository.UpdateThread(exThread); err != nil {
+		return nil, errors.Wrap(err, "repository.UpdateThread")
+	}
+
+	return exThread, nil
 }
 
 func (u *ForumUcase) GetPosts(currThread string, params *models.ListParameters) ([]*models.Post, error){
@@ -187,4 +227,82 @@ func (u *ForumUcase) GetPosts(currThread string, params *models.ListParameters) 
 		return nil, err
 	}
 	return posts, nil
+}
+
+func (u *ForumUcase) FindPost(id int64) (*models.Post, error) {
+	post, err := u.repository.FindPost(id)
+	if err != nil {
+		return nil, errors.New(forum.POST_NOT_FOUND)
+	}
+	return post, nil
+}
+
+func (u *ForumUcase) FindPostDetail(id int64, related string) (*models.Combine, error) {
+	res := new(models.Combine)
+
+	post, err := u.repository.FindPost(id)
+	if err != nil {
+		return nil, errors.New(forum.POST_NOT_FOUND)
+	}
+
+	res.Post = post
+
+	if strings.Contains(related, "forum") {
+		postForum, err := u.repository.FindBySlug(post.Forum)
+		if err != nil {
+			return nil, errors.New(forum.NOT_FOUND)
+		}
+		res.Forum = postForum
+	}
+
+	if strings.Contains(related, "thread") {
+		postThread, err := u.repository.FindThread(post.Thread)
+		if err != nil {
+			return nil, errors.New(forum.NOT_FOUND)
+		}
+		res.Thread = postThread
+	}
+
+	if strings.Contains(related, "user") {
+		postAuthor, err := u.repository.FindUser(post.Author)
+		if err != nil {
+			return nil, errors.New(forum.NOT_FOUND)
+		}
+		res.Author = postAuthor
+	}
+
+	return res, nil
+}
+
+func (u *ForumUcase) UpdatePost(post *models.Post) (*models.Post, error) {
+	currPost, err := u.FindPost(post.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if post.Message == "" || post.Message == currPost.Message {
+		return currPost, nil
+	}
+
+	currPost.Message = post.Message
+	currPost.IsEdited = true
+
+	if err = u.repository.UpdatePost(currPost); err != nil {
+		return nil, err
+	}
+
+	return currPost, nil
+}
+
+func (u *ForumUcase) GetUsers(slug string, params models.ListParameters) ([]*models.User, error) {
+	_, err := u.repository.FindBySlug(slug)
+	if err != nil {
+		return nil, errors.New(forum.NOT_FOUND)
+	}
+
+	users, err := u.repository.GetUsers(slug, params)
+	if err != nil {
+		return nil, errors.Wrap(err, "repository.GetUsers()")
+	}
+	return users, nil
 }
