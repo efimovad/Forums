@@ -94,29 +94,30 @@ func (u *ForumUcase) CreatePosts(currForum string, posts []*models.Post) error {
 	for _, elem := range posts {
 		var parent *models.Post
 
-		if elem.Parent != 0 {
-			parent, err = u.repository.FindPost(elem.Parent)
-			if err != nil {
-				return errors.New(forum.PARENT_POST_CONFLICT)
-			}
+		if elem.Parent == 0 {
+			continue
+		}
+
+		parent, err = u.repository.FindPost(elem.Parent)
+		if err != nil {
+			return errors.New(forum.PARENT_POST_CONFLICT)
 		}
 
 		if parent != nil && parent.Thread != t.ID {
 			return errors.New(forum.PARENT_POST_CONFLICT)
 		}
 
-		_, err = u.userRep.FindByName(elem.Author)
+		/*_, err = u.userRep.FindByName(elem.Author)
 		if err != nil {
 			return errors.Wrap(errors.New(forum.NOT_FOUND_ERR + elem.Author), "userRep.FindByName()")
-		}
-
-		elem.Thread = t.ID
-		elem.Forum = t.Forum
-		elem.IsEdited = false
+		}*/
 	}
 
-	err = u.repository.CreatePosts(posts)
+	err = u.repository.CreatePosts(posts, t)
 	if err != nil {
+		if strings.Contains(err.Error(), "posts_author_fkey") {
+			return errors.Wrap(errors.New(forum.NOT_FOUND_ERR), "userRep.FindByName()")
+		}
 		return errors.Wrap(err, "CreatePosts")
 	}
 	return nil

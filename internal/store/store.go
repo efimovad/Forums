@@ -68,12 +68,12 @@ func createTables(db *sql.DB) error{
 	postQuery := `CREATE TABLE IF NOT EXISTS posts (
     	id bigserial not null primary key,
     	path varchar, 
-		author varchar,
-		created timestamp,
+		author varchar references users(nickname),
+		created timestamptz       DEFAULT now(),
 		forum varchar not null,
 		isEdited boolean,
 		message varchar,
-		parent integer,
+		parent bigint,
 		thread integer,
 		slug varchar
 	);`

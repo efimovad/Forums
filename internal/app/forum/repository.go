@@ -14,7 +14,7 @@ type Repository interface {
 	FindThreadBySlug(slug string) (*models.Thread, error)
 	UpdateThread(thread *models.Thread) error
 
-	CreatePosts(posts []*models.Post) error
+	CreatePosts(posts []*models.Post, thread *models.Thread) error
 	FindPost(id int64) (*models.Post, error)
 	FindPostBySlug(slug string) (*models.Post, error)
 	GetPosts(thread *models.Thread, params *models.ListParameters) ([]*models.Post, error)

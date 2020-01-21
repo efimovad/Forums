@@ -221,11 +221,37 @@ func (r *Repository) UpdateThread(thread *models.Thread) error {
 	).Scan(&thread.ID)*/
 }
 
-func (r * Repository) CreatePosts(posts []*models.Post) error {
+func (r * Repository) CreatePosts(posts []*models.Post, thread *models.Thread) error {
 	created := time.Now().UTC()
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
 	for _, elem := range posts {
 		elem.Created = created
-		err := 	r.db.QueryRow(
+		elem.Thread = thread.ID
+		elem.Forum = thread.Forum
+
+		err := tx.QueryRow("INSERT INTO posts (path, author, created, forum, isEdited, message, parent, thread, slug) " +
+			"VALUES (" +
+			"CASE WHEN $6 > 0 THEN (SELECT P.path from posts AS P WHERE P.id = $6) || auto_id() ELSE auto_id() END, " +
+			"$1, $2, $3, $4, $5, $6, $7, $8" +
+			") RETURNING id", elem.Author,
+			elem.Created,
+			elem.Forum,
+			elem.IsEdited,
+			elem.Message,
+			elem.Parent,
+			elem.Thread,
+			elem.Slug).Scan(&elem.ID)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		/*err := 	r.db.QueryRow(
 			"INSERT INTO posts (path, author, created, forum, isEdited, message, parent, thread, slug) " +
 				"VALUES (" +
 				"CASE WHEN $6 > 0 THEN (SELECT P.path from posts AS P WHERE P.id = $6) || auto_id() ELSE auto_id() END, " +
@@ -242,8 +268,14 @@ func (r * Repository) CreatePosts(posts []*models.Post) error {
 		).Scan(&elem.ID)
 		if err != nil {
 			return err
-		}
+		}*/
 	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
