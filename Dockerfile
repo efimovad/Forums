@@ -36,7 +36,7 @@ RUN service postgresql start &&\
 
 VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 
-#COPY sunrise_db.sql .
+COPY internal/store/functions.sql .
 CMD ls /usr/src/app/
 COPY --from=builder /usr/src/app/forum .
 #COPY ./forum .

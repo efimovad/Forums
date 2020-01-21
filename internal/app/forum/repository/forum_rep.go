@@ -187,14 +187,38 @@ func (r *Repository) FindThreadBySlug(slug string) (*models.Thread, error) {
 }
 
 func (r *Repository) UpdateThread(thread *models.Thread) error {
-	return r.db.QueryRow(
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare("UPDATE threads SET votes = $1, title = $2, message = $3 WHERE id = $4")
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(thread.Votes, thread.Title, thread.Message, thread.ID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+	/*return r.db.QueryRow(
 		`UPDATE threads SET votes = $1, title = $2, message = $3 
 				WHERE id = $4 RETURNING id`,
 		thread.Votes,
 		thread.Title,
 		thread.Message,
 		thread.ID,
-	).Scan(&thread.ID)
+	).Scan(&thread.ID)*/
 }
 
 func (r * Repository) CreatePosts(posts []*models.Post) error {
@@ -275,38 +299,41 @@ func (r *Repository) UpdatePost(post *models.Post) error {
 	).Scan(&post.ID)
 }
 
-func (r *Repository) CreateVote(vote *models.Vote) error {
-	return r.db.QueryRow(
-		"INSERT INTO votes (nickname, vote, thread) VALUES ($1, $2, $3) RETURNING id",
-		vote.Nickname,
-		vote.Voice,
-		vote.Thread,
-	).Scan(&vote.ID)
-}
-
-func (r *Repository) FindVote(thread string, nickname string) (*models.Vote, error) {
-	v := new(models.Vote)
-	if err := r.db.QueryRow(
-		"SELECT id, nickname, vote, thread FROM votes " +
-			"WHERE LOWER(nickname) = LOWER($1) AND LOWER(thread) = LOWER($2)",
-		nickname, thread,
-	).Scan(
-		&v.ID,
-		&v.Nickname,
-		&v.Voice,
-		&v.Thread,
-	); err != nil {
-		return nil, err
+func (r *Repository) CreateVote(vote *models.Vote, thread *models.Thread) (int64, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, err
 	}
-	return v, nil
-}
 
-func (r *Repository) UpdateVote(vote *models.Vote) error {
-	return r.db.QueryRow(
-		"UPDATE votes SET vote = $1 WHERE id = $2 RETURNING id",
-		vote.Voice,
-		vote.ID,
-	).Scan(&vote.ID)
+	stmt, err := tx.Prepare("INSERT INTO votes(nickname, vote, thread) VALUES ($1, $2, $3) ON CONFLICT (LOWER(nickname), thread) DO UPDATE SET vote = $2")
+	if err != nil {
+		return 0, err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(vote.Nickname, vote.Voice, thread.ID)
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	var numVotes int64
+	rowT := tx.QueryRow("SELECT votes FROM threads WHERE id = $1", thread.ID)
+	err = rowT.Scan(
+		&numVotes,
+	)
+
+	if err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return 0, err
+	}
+
+	return numVotes, nil
 }
 
 func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParameters) ([]*models.Post, error) {
@@ -348,12 +375,12 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 	} else if params.Sort == "parent_tree" {
 		rows, err = r.db.Query(
 			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts 
-						WHERE substring(path,1,6) IN (
+						WHERE substring(path,1,7) IN (
 						      (SELECT path FROM posts WHERE parent = 0 AND thread = $1 AND (
 						        ($2 AND NOT $5 AND created >= $3) OR 
 						        ($2 AND $5 AND created <= $3) OR
 						        (NOT $2 AND NOT $5 AND $4 > 0 AND path > (SELECT path FROM posts WHERE id = $4)) OR 
-						    	(NOT $2 AND $5 AND $4 > 0 AND path < (SELECT substring(path,1,6) FROM posts WHERE id = $4)) OR
+						    	(NOT $2 AND $5 AND $4 > 0 AND path < (SELECT substring(path,1,7) FROM posts WHERE id = $4)) OR
 						       	(NOT $2 AND $4 = 0))
 						       	ORDER BY
 						      		CASE WHEN NOT $5 THEN path END,
@@ -361,7 +388,7 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 						        LIMIT $6))
 						ORDER BY 
 						         CASE WHEN NOT $5 THEN path END,
-						         CASE WHEN $5 THEN substring(path from 1 for 6) END DESC, path`,
+						         CASE WHEN $5 THEN substring(path,1,7) END DESC, path`,
 			thread.ID, sinceIsDate, t, sinceId, params.Desc, params.Limit)
 	} else {
 		rows, err = r.db.Query(

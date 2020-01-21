@@ -7,11 +7,13 @@ import (
 	"github.com/pkg/errors"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type ForumUcase struct {
 	repository	forum.Repository
 	userRep		user.Repository
+	mux			sync.Mutex
 }
 
 func NewForumUsecase(r forum.Repository, ur user.Repository) forum.Usecase {
@@ -128,35 +130,24 @@ func (u *ForumUcase) CreatePosts(currForum string, posts []*models.Post) error {
 }
 
 func (u *ForumUcase) CreateVote(vote *models.Vote) (*models.Thread, error) {
+	if vote.Voice != 1 && vote.Voice != -1 {
+		return nil, errors.New(forum.WRONG_INPUT)
+	}
+
 	thread, err := u.GetThread(vote.Thread)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err = u.repository.FindUser(vote.Nickname); err != nil {
-		return nil, errors.New("Can't find user by nickname: " + vote.Nickname)
-	}
-
-	vote.Thread = thread.Slug
-
-	v, err := u.repository.FindVote(vote.Thread, vote.Nickname)
+	u.mux.Lock()
+	votesNum, err := u.repository.CreateVote(vote, thread)
 	if err != nil {
-		thread.Votes += vote.Voice
-		if err := u.repository.CreateVote(vote); err != nil {
-			return nil, err
-		}
-	} else {
-		thread.Votes += vote.Voice - v.Voice
-		v.Voice = vote.Voice
-
-		if err := u.repository.UpdateVote(v); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := u.repository.UpdateThread(thread); err != nil {
+		u.mux.Unlock()
 		return nil, err
 	}
+	u.mux.Unlock()
+
+	thread.Votes = votesNum
 
 	return thread, nil
 }
@@ -192,10 +183,6 @@ func (u *ForumUcase) UpdateThread(currThread string, thread *models.Thread) (*mo
 	if err != nil {
 		return nil, errors.New(forum.THREAD_NOT_FOUND)
 	}
-
-	//log.Println("EXTHREAD", exThread)
-	//log.Println("MESSAGE", thread.Message)
-	//log.Println("TITLE", thread.Title)
 
 	if thread.Title == "" && thread.Message == "" {
 		return exThread, nil

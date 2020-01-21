@@ -20,9 +20,9 @@ type Repository interface {
 	GetPosts(thread *models.Thread, params *models.ListParameters) ([]*models.Post, error)
 	UpdatePost(post *models.Post) error
 
-	CreateVote(vote *models.Vote) error
-	FindVote(thread string, nickname string) (*models.Vote, error)
-	UpdateVote(vote *models.Vote) error
+	CreateVote(vote *models.Vote, thread *models.Thread) (int64, error)
+	//FindVote(thread string, nickname string) (*models.Vote, error)
+	//UpdateVote(vote *models.Vote) (int64, error)
 
 	FindUser(nickname string) (*models.User, error)
 }

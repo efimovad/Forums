@@ -3,7 +3,8 @@ package store
 import (
 	"database/sql"
 	_ "github.com/lib/pq"
-	)
+	"io/ioutil"
+)
 
 func New(dbURL string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", dbURL)
@@ -57,7 +58,7 @@ func createTables(db *sql.DB) error{
 	postSequence := `CREATE SEQUENCE IF NOT EXISTS post_path 
 						INCREMENT 1 
  						MINVALUE 1 
-    					MAXVALUE 999999 
+    					MAXVALUE 9999999
 						START 1 
 						CACHE 1;`
 	if _, err := db.Exec(postSequence); err != nil {
@@ -81,24 +82,30 @@ func createTables(db *sql.DB) error{
 	}
 
 	pathFunc := `CREATE OR REPLACE FUNCTION auto_id () returns varchar as $$
-						select TO_CHAR(nextval('post_path'::regclass),'fm000000')
+						select TO_CHAR(nextval('post_path'::regclass),'fm0000000')
 					$$ language sql `
 	if _, err := db.Exec(pathFunc); err != nil {
 		return err
 	}
 
-	/*postIndex := `CREATE INDEX path_post_idx ON post USING btree(path);`
-	if _, err := db.Exec(postIndex); err != nil {
-		return err
-	}*/
-
 	voteQuery := `CREATE TABLE IF NOT EXISTS votes (
     	id bigserial not null primary key,
 		nickname varchar,
 		vote integer,
-		thread varchar
+		thread integer references threads(id),
+		unique(nickname, thread)
 	);`
 	if _, err := db.Exec(voteQuery); err != nil {
+		return err
+	}
+
+	file, err := ioutil.ReadFile("./functions.sql")
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(string(file))
+	if err != nil {
 		return err
 	}
 

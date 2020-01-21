@@ -15,6 +15,10 @@ func NewGeneralRepository(db *sql.DB) general.Repository {
 }
 
 func (r *Repository) DropAll() error {
+	if _, err := r.db.Exec("DELETE FROM votes;"); err != nil {
+		return err
+	}
+
 	if _, err := r.db.Exec("DELETE FROM posts;"); err != nil {
 		return err
 	}
