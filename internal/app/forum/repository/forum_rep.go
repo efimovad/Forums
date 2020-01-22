@@ -77,34 +77,7 @@ func (r *Repository) CreateThread(thread *models.Thread) error {
 func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 	f := new(models.Forum)
 
-	tx, err := r.db.Begin()
-	if err != nil {
-		return nil, err
-	}
-
-	rowT := tx.QueryRow("SELECT id, slug, title, \"user\", " +
-		"(SELECT COUNT(*) FROM threads WHERE LOWER(forum) = LOWER($1)), " +
-		"(SELECT COUNT(*) FROM posts WHERE LOWER(forum) = LOWER($1)) " +
-		"FROM forums WHERE LOWER(slug) = LOWER($1)", slug)
-	err = rowT.Scan(
-		&f.ID,
-		&f.Slug,
-		&f.Title,
-		&f.User,
-		&f.Threads,
-		&f.Posts,
-	)
-
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return nil, err
-	}
-	/*if err := r.db.QueryRow(
+	if err := r.db.QueryRow(
 		"SELECT id, slug, title, \"user\", " +
 			"(SELECT COUNT(*) FROM threads WHERE LOWER(forum) = LOWER($1)), " +
 			"(SELECT COUNT(*) FROM posts WHERE LOWER(forum) = LOWER($1)) " +
@@ -119,49 +92,9 @@ func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 		&f.Posts,
 	); err != nil {
 		return nil, err
-	}*/
+	}
 	return f, nil
 }
-
-/*func (r *Repository) FindByTitle(title string) (*models.Forum, error) {
-	f := new(models.Forum)
-
-	tx, err := r.db.Begin()
-	if err != nil {
-		return nil, err
-	}
-
-	rowT := tx.QueryRow("SELECT id, slug, title, \"user\" FROM forums WHERE LOWER(title) = LOWER($1)", title)
-	err = rowT.Scan(
-		&f.ID,
-		&f.Slug,
-		&f.Title,
-		&f.User,
-	)
-
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return nil, err
-	}
-
-	/*if err := r.db.QueryRow(
-		"SELECT id, slug, title, \"user\" FROM forums WHERE LOWER(title) = LOWER($1)",
-		title,
-	).Scan(
-		&f.ID,
-		&f.Slug,
-		&f.Title,
-		&f.User,
-	); err != nil {
-		return nil, err
-	}
-	return f, nil
-}*/
 
 func (r *Repository) GetThreads(slug string, params *models.ListParameters) ([]*models.Thread, error){
 	var err error
@@ -285,8 +218,6 @@ func (r * Repository) CreatePosts(posts []*models.Post, thread *models.Thread) e
 		return err
 	}
 
-	//created := time.Now()
-	//log.Println("CREATE POST REPO:", created)
 	created := strfmt.DateTime(time.Now())
 
 	for _, elem := range posts {
@@ -341,28 +272,6 @@ func (r *Repository) FindPost(id int64) (*models.Post, error) {
 	return p, nil
 }
 
-/*func (r *Repository) FindPostBySlug(slug string) (*models.Post, error) {
-	p := new(models.Post)
-	if err := r.db.QueryRow(
-		"SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts " +
-			"WHERE LOWER(slug) = LOWER($1)",
-		slug,
-	).Scan(
-		&p.ID,
-		&p.Author,
-		&p.Created,
-		&p.Forum,
-		&p.IsEdited,
-		&p.Message,
-		&p.Parent,
-		&p.Thread,
-		&p.Slug,
-	); err != nil {
-		return nil, err
-	}
-	return p, nil
-}*/
-
 func (r *Repository) UpdatePost(post *models.Post) error {
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -388,12 +297,6 @@ func (r *Repository) UpdatePost(post *models.Post) error {
 	}
 
 	return nil
-	/*return r.db.QueryRow(
-		"UPDATE posts SET message = $1, isEdited = $2 WHERE id = $3 RETURNING id",
-		post.Message,
-		post.IsEdited,
-		post.ID,
-	).Scan(&post.ID)*/
 }
 
 func (r *Repository) CreateVote(vote *models.Vote, thread *models.Thread) (int64, error) {
