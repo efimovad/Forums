@@ -32,6 +32,10 @@ func (r *Repository) CreateForum(forum *models.Forum) error {
 }
 
 func (r *Repository) CreateThread(thread *models.Thread) error {
+	if thread.Created.IsZero() {
+		thread.Created = time.Now()
+	}
+
 	return r.db.QueryRow(
 		"INSERT INTO threads (forum, author, created, message, title, slug, votes) " +
 			"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",

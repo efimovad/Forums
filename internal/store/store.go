@@ -45,7 +45,7 @@ func createTables(db *sql.DB) error{
     	id bigserial not null primary key,
 		forum varchar not null,
 		author varchar,
-		created timestamp,
+		created timestamptz       DEFAULT now(),
 		message varchar,
 		title varchar,
 		slug varchar,
@@ -99,7 +99,8 @@ func createTables(db *sql.DB) error{
 		return err
 	}
 
-	file, err := ioutil.ReadFile("./functions.sql")
+	//file, err := ioutil.ReadFile("./functions.sql")
+	file, err := ioutil.ReadFile("./internal/store/functions.sql")
 	if err != nil {
 		return err
 	}
