@@ -3,12 +3,21 @@ ALTER SEQUENCE post_path RESTART;
 DROP TRIGGER IF EXISTS on_vote_insert ON votes;
 DROP TRIGGER IF EXISTS on_vote_update ON votes;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_forums_slug ON forums (LOWER(slug));
+CREATE INDEX IF NOT EXISTS idx_forums_user ON forums ("user");
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_nickname_thread_unique
-    ON votes (LOWER(nickname), thread);
+CREATE INDEX IF NOT EXISTS idx_threads_slug ON threads (LOWER(slug));
+CREATE INDEX IF NOT EXISTS idx_threads_forum ON threads (LOWER(forum));
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname
-    ON users (LOWER(nickname));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_nickname_thread_unique ON votes (LOWER(nickname), thread);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname ON users (LOWER(nickname));
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_path ON posts (path);
+CREATE INDEX IF NOT EXISTS idx_posts_sub_path ON posts (substring(path,1,7));
+CREATE INDEX IF NOT EXISTS idx_posts_created ON posts (created);
+CREATE INDEX IF NOT EXISTS idx_posts_parent ON posts (parent);
+CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts (thread);
 
 CREATE OR REPLACE FUNCTION fn_update_thread_votes_ins()
     RETURNS TRIGGER AS '

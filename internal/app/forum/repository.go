@@ -7,7 +7,6 @@ import (
 type Repository interface {
 	CreateForum(forum *models.Forum) error
 	FindBySlug(slug string) (*models.Forum, error)
-	FindByTitle(title string) (*models.Forum, error)
 	GetUsers(slug string, params models.ListParameters) ([]*models.User, error)
 
 	CreateThread(thread *models.Thread) error
@@ -18,7 +17,7 @@ type Repository interface {
 
 	CreatePosts(posts []*models.Post, thread *models.Thread) error
 	FindPost(id int64) (*models.Post, error)
-	FindPostBySlug(slug string) (*models.Post, error)
+	//FindPostBySlug(slug string) (*models.Post, error)
 	GetPosts(thread *models.Thread, params *models.ListParameters) ([]*models.Post, error)
 	UpdatePost(post *models.Post) error
 

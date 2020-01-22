@@ -72,23 +72,39 @@ func (r *Repository) CreateThread(thread *models.Thread) error {
 		return err
 	}
 	return nil
-
-	/*return r.db.QueryRow(
-		"INSERT INTO threads (forum, author, created, message, title, slug, votes) " +
-			"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-		thread.Forum,
-		thread.Author,
-		thread.Created,
-		thread.Message,
-		thread.Title,
-		thread.Slug,
-		thread.Votes,
-	).Scan(&thread.ID)*/
 }
 
 func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 	f := new(models.Forum)
-	if err := r.db.QueryRow(
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+
+	rowT := tx.QueryRow("SELECT id, slug, title, \"user\", " +
+		"(SELECT COUNT(*) FROM threads WHERE LOWER(forum) = LOWER($1)), " +
+		"(SELECT COUNT(*) FROM posts WHERE LOWER(forum) = LOWER($1)) " +
+		"FROM forums WHERE LOWER(slug) = LOWER($1)", slug)
+	err = rowT.Scan(
+		&f.ID,
+		&f.Slug,
+		&f.Title,
+		&f.User,
+		&f.Threads,
+		&f.Posts,
+	)
+
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, err
+	}
+	/*if err := r.db.QueryRow(
 		"SELECT id, slug, title, \"user\", " +
 			"(SELECT COUNT(*) FROM threads WHERE LOWER(forum) = LOWER($1)), " +
 			"(SELECT COUNT(*) FROM posts WHERE LOWER(forum) = LOWER($1)) " +
@@ -103,13 +119,37 @@ func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
 		&f.Posts,
 	); err != nil {
 		return nil, err
-	}
+	}*/
 	return f, nil
 }
 
-func (r *Repository) FindByTitle(title string) (*models.Forum, error) {
+/*func (r *Repository) FindByTitle(title string) (*models.Forum, error) {
 	f := new(models.Forum)
-	if err := r.db.QueryRow(
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+
+	rowT := tx.QueryRow("SELECT id, slug, title, \"user\" FROM forums WHERE LOWER(title) = LOWER($1)", title)
+	err = rowT.Scan(
+		&f.ID,
+		&f.Slug,
+		&f.Title,
+		&f.User,
+	)
+
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, err
+	}
+
+	/*if err := r.db.QueryRow(
 		"SELECT id, slug, title, \"user\" FROM forums WHERE LOWER(title) = LOWER($1)",
 		title,
 	).Scan(
@@ -121,50 +161,35 @@ func (r *Repository) FindByTitle(title string) (*models.Forum, error) {
 		return nil, err
 	}
 	return f, nil
-}
+}*/
 
 func (r *Repository) GetThreads(slug string, params *models.ListParameters) ([]*models.Thread, error){
 	var err error
 	var rows *sql.Rows
 	var threads []*models.Thread
+	var t time.Time
+	var sinceSet bool
 
 	if params.Since != "" {
 		layout := "2006-01-02T15:04:05Z07:00"
-		t, err := time.Parse(layout, params.Since)
+		t, err = time.Parse(layout, params.Since)
 		if err != nil {
 			return nil, err
 		}
-
-		if !params.Desc {
-			rows, err = r.db.Query(
-				"SELECT id, forum, author, created, message, title, slug, votes FROM threads "+
-					"WHERE LOWER(forum) = LOWER($1) AND created >= $2 "+
-					"ORDER BY "+
-					"CASE WHEN $3 THEN created END DESC, "+
-					"CASE WHEN NOT $3 THEN created END ASC "+
-					"LIMIT CASE WHEN $4 > 0 THEN $4 END;",
-				slug, t, params.Desc, params.Limit)
-		} else {
-			rows, err = r.db.Query(
-				"SELECT id, forum, author, created, message, title, slug, votes FROM threads "+
-					"WHERE LOWER(forum) = LOWER($1) AND created <= $2 "+
-					"ORDER BY "+
-					"CASE WHEN $3 THEN created END DESC, "+
-					"CASE WHEN NOT $3 THEN created END ASC "+
-					"LIMIT CASE WHEN $4 > 0 THEN $4 END;",
-				slug, t, params.Desc, params.Limit)
-		}
-
-	} else {
-		rows, err = r.db.Query(
-			"SELECT id, forum, author, created, message, title, slug, votes FROM threads " +
-				"WHERE LOWER(forum) = LOWER($1)" +
-				"ORDER BY " +
-				"CASE WHEN $2 THEN created END DESC, " +
-				"CASE WHEN NOT $2 THEN created END ASC " +
-				"LIMIT CASE WHEN $3 > 0 THEN $3 END;",
-			slug, params.Desc, params.Limit)
+		sinceSet = true
 	}
+
+	rows, err = r.db.Query(
+		`SELECT id, forum, author, created, message, title, slug, votes 
+						FROM threads
+						WHERE LOWER(forum) = LOWER($1) AND 
+						      (NOT $5 OR (NOT $3 AND created >= $2) OR ($3 AND created <= $2))
+						ORDER BY
+							CASE WHEN $3 THEN created END DESC,
+							CASE WHEN NOT $3 THEN created END ASC
+						LIMIT CASE WHEN $4 > 0 THEN $4 END;`,
+		slug, t, params.Desc, params.Limit, sinceSet)
+
 
 	if err != nil {
 		return nil, err
@@ -316,7 +341,7 @@ func (r *Repository) FindPost(id int64) (*models.Post, error) {
 	return p, nil
 }
 
-func (r *Repository) FindPostBySlug(slug string) (*models.Post, error) {
+/*func (r *Repository) FindPostBySlug(slug string) (*models.Post, error) {
 	p := new(models.Post)
 	if err := r.db.QueryRow(
 		"SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts " +
@@ -336,15 +361,39 @@ func (r *Repository) FindPostBySlug(slug string) (*models.Post, error) {
 		return nil, err
 	}
 	return p, nil
-}
+}*/
 
 func (r *Repository) UpdatePost(post *models.Post) error {
-	return r.db.QueryRow(
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare("UPDATE posts SET message = $1, isEdited = $2 WHERE id = $3 RETURNING id")
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(post.Message, post.IsEdited, post.ID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+	/*return r.db.QueryRow(
 		"UPDATE posts SET message = $1, isEdited = $2 WHERE id = $3 RETURNING id",
 		post.Message,
 		post.IsEdited,
 		post.ID,
-	).Scan(&post.ID)
+	).Scan(&post.ID)*/
 }
 
 func (r *Repository) CreateVote(vote *models.Vote, thread *models.Thread) (int64, error) {
