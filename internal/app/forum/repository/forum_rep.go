@@ -4,14 +4,10 @@ import (
 	"database/sql"
 	"github.com/efimovad/Forums.git/internal/app/forum"
 	"github.com/efimovad/Forums.git/internal/models"
-	"log"
+	"github.com/go-openapi/strfmt"
 	"strconv"
 	"strings"
 	"time"
-)
-
-const (
-	MaxPostNum = 6
 )
 
 type Repository struct {
@@ -23,20 +19,61 @@ func NewForumRepository(db *sql.DB) forum.Repository {
 }
 
 func (r *Repository) CreateForum(forum *models.Forum) error {
-	return r.db.QueryRow(
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	err = tx.QueryRow(
 		"INSERT INTO forums (slug, title, \"user\") VALUES ($1, $2, $3) RETURNING id",
 		forum.Slug,
 		forum.Title,
 		forum.User,
 	).Scan(&forum.ID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *Repository) CreateThread(thread *models.Thread) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+
 	if thread.Created.IsZero() {
 		thread.Created = time.Now()
 	}
 
-	return r.db.QueryRow(
+	err = tx.QueryRow("INSERT INTO threads (forum, author, created, message, title, slug, votes) " +
+		"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+		thread.Forum,
+		thread.Author,
+		thread.Created,
+		thread.Message,
+		thread.Title,
+		thread.Slug,
+		thread.Votes,
+	).Scan(&thread.ID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+
+	/*return r.db.QueryRow(
 		"INSERT INTO threads (forum, author, created, message, title, slug, votes) " +
 			"VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
 		thread.Forum,
@@ -46,7 +83,7 @@ func (r *Repository) CreateThread(thread *models.Thread) error {
 		thread.Title,
 		thread.Slug,
 		thread.Votes,
-	).Scan(&thread.ID)
+	).Scan(&thread.ID)*/
 }
 
 func (r *Repository) FindBySlug(slug string) (*models.Forum, error) {
@@ -215,26 +252,20 @@ func (r *Repository) UpdateThread(thread *models.Thread) error {
 	}
 
 	return nil
-	/*return r.db.QueryRow(
-		`UPDATE threads SET votes = $1, title = $2, message = $3 
-				WHERE id = $4 RETURNING id`,
-		thread.Votes,
-		thread.Title,
-		thread.Message,
-		thread.ID,
-	).Scan(&thread.ID)*/
 }
 
 func (r * Repository) CreatePosts(posts []*models.Post, thread *models.Thread) error {
-	created := time.Now().UTC()
-
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
 	}
 
+	//created := time.Now()
+	//log.Println("CREATE POST REPO:", created)
+	created := strfmt.DateTime(time.Now())
+
 	for _, elem := range posts {
-		elem.Created = created
+		elem.Created = created.String()
 		elem.Thread = thread.ID
 		elem.Forum = thread.Forum
 
@@ -243,7 +274,7 @@ func (r * Repository) CreatePosts(posts []*models.Post, thread *models.Thread) e
 			"CASE WHEN $6 > 0 THEN (SELECT P.path from posts AS P WHERE P.id = $6) || auto_id() ELSE auto_id() END, " +
 			"$1, $2, $3, $4, $5, $6, $7, $8" +
 			") RETURNING id", elem.Author,
-			elem.Created,
+			created,
 			elem.Forum,
 			elem.IsEdited,
 			elem.Message,
@@ -254,25 +285,6 @@ func (r * Repository) CreatePosts(posts []*models.Post, thread *models.Thread) e
 			tx.Rollback()
 			return err
 		}
-
-		/*err := 	r.db.QueryRow(
-			"INSERT INTO posts (path, author, created, forum, isEdited, message, parent, thread, slug) " +
-				"VALUES (" +
-				"CASE WHEN $6 > 0 THEN (SELECT P.path from posts AS P WHERE P.id = $6) || auto_id() ELSE auto_id() END, " +
-				"$1, $2, $3, $4, $5, $6, $7, $8" +
-				") RETURNING id",
-			elem.Author,
-			elem.Created,
-			elem.Forum,
-			elem.IsEdited,
-			elem.Message,
-			elem.Parent,
-			elem.Thread,
-			elem.Slug,
-		).Scan(&elem.ID)
-		if err != nil {
-			return err
-		}*/
 	}
 
 	err = tx.Commit()
@@ -398,8 +410,8 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 		rows, err = r.db.Query(
 			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts 
 						WHERE thread = $1 AND 
-						      (($2 AND NOT $5 AND created >= $3) OR 
-						       ($2 AND $5 AND created <= $3) OR 
+						      (($2 AND NOT $5 AND created > $3) OR 
+						       ($2 AND $5 AND created < $3) OR 
 						       (NOT $2 AND NOT $5 AND $4 > 0 AND path > (SELECT path FROM posts WHERE id = $4)) OR 
 						       (NOT $2 AND $5 AND $4 > 0 AND path < (SELECT path FROM posts WHERE id = $4)) OR 
 						       (NOT $2 AND $4 = 0))
@@ -411,12 +423,12 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 	} else if params.Sort == "parent_tree" {
 		rows, err = r.db.Query(
 			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts 
-						WHERE substring(path,1,9) IN (
+						WHERE substring(path,1,7) IN (
 						      (SELECT path FROM posts WHERE parent = 0 AND thread = $1 AND (
-						        ($2 AND NOT $5 AND created >= $3) OR 
-						        ($2 AND $5 AND created <= $3) OR
+						        ($2 AND NOT $5 AND created > $3) OR 
+						        ($2 AND $5 AND created < $3) OR
 						        (NOT $2 AND NOT $5 AND $4 > 0 AND path > (SELECT path FROM posts WHERE id = $4)) OR 
-						    	(NOT $2 AND $5 AND $4 > 0 AND path < (SELECT substring(path,1,9) FROM posts WHERE id = $4)) OR
+						    	(NOT $2 AND $5 AND $4 > 0 AND path < (SELECT substring(path,1,7) FROM posts WHERE id = $4)) OR
 						       	(NOT $2 AND $4 = 0))
 						       	ORDER BY
 						      		CASE WHEN NOT $5 THEN path END,
@@ -424,14 +436,14 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 						        LIMIT $6))
 						ORDER BY 
 						         CASE WHEN NOT $5 THEN path END,
-						         CASE WHEN $5 THEN substring(path,1,9) END DESC, path`,
+						         CASE WHEN $5 THEN substring(path,1,7) END DESC, path`,
 			thread.ID, sinceIsDate, t, sinceId, params.Desc, params.Limit)
 	} else {
 		rows, err = r.db.Query(
 			`SELECT id, author, created, forum, isEdited, message, parent, thread, slug FROM posts 
 						WHERE thread = $1 AND 
-						      (($2 AND NOT $5 AND created >= $3) OR 
-						       ($2 AND $5 AND created <= $3) OR 
+						      (($2 AND NOT $5 AND created > $3) OR 
+						       ($2 AND $5 AND created < $3) OR 
 						       (NOT $2 AND NOT $5 AND $4 > 0 AND id > $4) OR 
 						       (NOT $2 AND $5 AND $4 > 0 AND id < $4) OR 
 						       (NOT $2 AND $4 = 0))
@@ -469,7 +481,7 @@ func (r *Repository) GetUsers(slug string, params models.ListParameters) ([]*mod
 	var rows *sql.Rows
 	var users []*models.User
 
-	log.Println(params)
+	//log.Println(params)
 
 	rows, err = r.db.Query(
 		`SELECT R.nickname, R.fullname, R.about, R.email FROM 

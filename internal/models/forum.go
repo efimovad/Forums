@@ -25,7 +25,7 @@ type Thread struct {
 type Post struct {
 	ID			int64		`json:"id"`
 	Author		string		`json:"author"`
-	Created 	time.Time	`json:"created"`
+	Created 	string		`json:"created"`
 	Forum		string		`json:"forum"`
 	IsEdited	bool		`json:"isEdited"`
 	Message		string		`json:"message"`

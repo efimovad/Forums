@@ -58,7 +58,7 @@ func createTables(db *sql.DB) error{
 	postSequence := `CREATE SEQUENCE IF NOT EXISTS post_path 
 						INCREMENT 1 
  						MINVALUE 1 
-    					MAXVALUE 999999999
+    					MAXVALUE 9999999
 						START 1 
 						CACHE 1;`
 	if _, err := db.Exec(postSequence); err != nil {
@@ -82,7 +82,7 @@ func createTables(db *sql.DB) error{
 	}
 
 	pathFunc := `CREATE OR REPLACE FUNCTION auto_id () returns varchar as $$
-						select TO_CHAR(nextval('post_path'::regclass),'fm000000000')
+						select TO_CHAR(nextval('post_path'::regclass),'fm0000000')
 					$$ language sql `
 	if _, err := db.Exec(pathFunc); err != nil {
 		return err
@@ -99,8 +99,7 @@ func createTables(db *sql.DB) error{
 		return err
 	}
 
-	//file, err := ioutil.ReadFile("./functions.sql")
-	file, err := ioutil.ReadFile("./internal/store/functions.sql")
+	file, err := ioutil.ReadFile("./functions.sql")
 	if err != nil {
 		return err
 	}

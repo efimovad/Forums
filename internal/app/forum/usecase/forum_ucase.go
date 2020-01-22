@@ -137,13 +137,10 @@ func (u *ForumUcase) CreateVote(vote *models.Vote) (*models.Thread, error) {
 		return nil, errors.New("Can't find user by nickname: " + vote.Nickname)
 	}
 
-	u.mux.Lock()
 	votesNum, err := u.repository.CreateVote(vote, thread)
 	if err != nil {
-		u.mux.Unlock()
 		return nil, err
 	}
-	u.mux.Unlock()
 
 	thread.Votes = votesNum
 

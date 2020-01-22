@@ -1,6 +1,8 @@
 package forum
 
-import "github.com/efimovad/Forums.git/internal/models"
+import (
+	"github.com/efimovad/Forums.git/internal/models"
+)
 
 type Repository interface {
 	CreateForum(forum *models.Forum) error
