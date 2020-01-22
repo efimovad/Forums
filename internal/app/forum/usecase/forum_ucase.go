@@ -277,12 +277,12 @@ func (u *ForumUcase) UpdatePost(post *models.Post) (*models.Post, error) {
 }
 
 func (u *ForumUcase) GetUsers(slug string, params models.ListParameters) ([]*models.User, error) {
-	_, err := u.repository.FindBySlug(slug)
+	currForum, err := u.repository.FindBySlug(slug)
 	if err != nil {
 		return nil, errors.New(forum.NOT_FOUND)
 	}
 
-	users, err := u.repository.GetUsers(slug, params)
+	users, err := u.repository.GetUsers(currForum.ID, params)
 	if err != nil {
 		return nil, errors.Wrap(err, "repository.GetUsers()")
 	}

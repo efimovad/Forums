@@ -428,7 +428,7 @@ func (r *Repository) GetPosts(thread *models.Thread, params *models.ListParamete
 	return posts, nil
 }
 
-func (r *Repository) GetUsers(slug string, params models.ListParameters) ([]*models.User, error) {
+func (r *Repository) GetUsers(id int64, params models.ListParameters) ([]*models.User, error) {
 	var err error
 	var rows *sql.Rows
 	var users []*models.User
@@ -436,6 +436,19 @@ func (r *Repository) GetUsers(slug string, params models.ListParameters) ([]*mod
 	//log.Println(params)
 
 	rows, err = r.db.Query(
+		`SELECT nickname, fullname, about, email FROM users
+    			WHERE id IN (SELECT user_id FROM forum_users WHERE forum_id = $1) AND 
+    			      ($2 = '' OR (NOT $3 AND LOWER(nickname) > $2) OR ($3 AND LOWER(nickname) < $2))
+				ORDER BY 
+				         CASE WHEN NOT $3 THEN LOWER(nickname) END,
+				         CASE WHEN $3 THEN LOWER(nickname) END DESC
+				LIMIT CASE WHEN $4 > 0 THEN $4 END;`,
+		id, strings.ToLower(params.Since), params.Desc, params.Limit)
+	if err != nil {
+		return nil, err
+	}
+
+	/*rows, err = r.db.Query(
 		`SELECT R.nickname, R.fullname, R.about, R.email FROM 
             	(
             	    SELECT U.nickname, U.fullname, U.about, U.email 
@@ -458,7 +471,7 @@ func (r *Repository) GetUsers(slug string, params models.ListParameters) ([]*mod
 		strings.ToLower(slug), strings.ToLower(params.Since), params.Desc, params.Limit)
 	if err != nil {
 		return nil, err
-	}
+	}*/
 
 	for rows.Next() {
 		item := new(models.User)

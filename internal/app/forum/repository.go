@@ -7,7 +7,7 @@ import (
 type Repository interface {
 	CreateForum(forum *models.Forum) error
 	FindBySlug(slug string) (*models.Forum, error)
-	GetUsers(slug string, params models.ListParameters) ([]*models.User, error)
+	GetUsers(id int64, params models.ListParameters) ([]*models.User, error)
 
 	CreateThread(thread *models.Thread) error
 	GetThreads(slug string, params *models.ListParameters) ([]*models.Thread, error)

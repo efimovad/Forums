@@ -1,3 +1,8 @@
+CREATE TABLE IF NOT EXISTS forum_users (
+    user_id BIGINT REFERENCES users(id),
+    forum_id BIGINT REFERENCES forums(id)
+);
+
 ALTER SEQUENCE post_path RESTART;
 
 DROP TRIGGER IF EXISTS on_vote_insert ON votes;
@@ -58,3 +63,20 @@ CREATE OR REPLACE FUNCTION fn_update_thread_votes_upd()
 CREATE TRIGGER on_vote_update
     AFTER UPDATE ON votes
     FOR EACH ROW EXECUTE PROCEDURE fn_update_thread_votes_upd();
+
+CREATE OR REPLACE FUNCTION forum_users_update()
+    RETURNS TRIGGER AS '
+    BEGIN
+        INSERT INTO forum_users (user_id, forum_id) VALUES ((SELECT id FROM users WHERE LOWER(NEW.author) = LOWER(nickname)),
+                                                        (SELECT id FROM forums WHERE LOWER(NEW.forum) = LOWER(slug)));
+        RETURN NULL;
+    END;
+' LANGUAGE plpgsql;
+
+CREATE TRIGGER on_post_insert
+    AFTER INSERT ON posts
+    FOR EACH ROW EXECUTE PROCEDURE forum_users_update();
+
+CREATE TRIGGER on_thread_insert
+    AFTER INSERT ON threads
+    FOR EACH ROW EXECUTE PROCEDURE forum_users_update();

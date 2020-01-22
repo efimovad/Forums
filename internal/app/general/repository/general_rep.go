@@ -15,23 +15,7 @@ func NewGeneralRepository(db *sql.DB) general.Repository {
 }
 
 func (r *Repository) DropAll() error {
-	if _, err := r.db.Exec("DELETE FROM votes;"); err != nil {
-		return err
-	}
-
-	if _, err := r.db.Exec("DELETE FROM posts;"); err != nil {
-		return err
-	}
-
-	if _, err := r.db.Exec("DELETE FROM threads;"); err != nil {
-		return err
-	}
-
-	if _, err := r.db.Exec("DELETE FROM forums;"); err != nil {
-		return err
-	}
-
-	if _, err := r.db.Exec("DELETE FROM users;"); err != nil {
+	if _, err := r.db.Exec("TRUNCATE votes, users, posts, threads, forums RESTART IDENTITY CASCADE;"); err != nil {
 		return err
 	}
 
