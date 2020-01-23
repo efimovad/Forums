@@ -216,7 +216,6 @@ func (h *Handler) UpdateThread(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
-	//log.Println("CREATE POST HANDLER:", time.Now())
 	w.Header().Set("Content-Type", "application/json")
 
 	defer func() {
@@ -240,7 +239,6 @@ func (h *Handler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.usecase.CreatePosts(slugOrID, list)
-	//log.Println("CREATED:", list[0].Created)
 	if err != nil && strings.Contains(err.Error(), forum.PARENT_POST_CONFLICT) {
 		general.Error(w, r, http.StatusConflict, err)
 		return
@@ -340,8 +338,10 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 
 	params.Since = r.URL.Query().Get("since")
 	params.Sort = r.URL.Query().Get("sort")
+	if params.Sort == "" {
+		params.Sort = "flat"
+	}
 
-	//log.Println("GET POSTS", params)
 	list, err := h.usecase.GetPosts(currForum, params)
 	if err != nil && strings.Contains(err.Error(), "Can't find") {
 		general.Error(w, r, http.StatusNotFound, err)
@@ -350,10 +350,6 @@ func (h *Handler) GetPosts(w http.ResponseWriter, r *http.Request) {
 		general.Error(w, r, http.StatusInternalServerError, err)
 		return
 	}
-
-	//for _, elem := range list {
-	//	log.Println("CREATED:", elem.Created)
-	//}
 
 	if len(list) == 0 {
 		general.Respond(w, r, http.StatusOK,  []string{})

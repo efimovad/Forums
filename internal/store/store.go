@@ -35,7 +35,8 @@ func createTables(db *sql.DB) error{
     	id bigserial not null primary key,
 		slug varchar unique not null,
 		title varchar,
-		"user" varchar not null 
+		"user" varchar not null,
+		posts    int default 0 
 	);`
 	if _, err := db.Exec(forumQuery); err != nil {
 		return err
@@ -55,7 +56,7 @@ func createTables(db *sql.DB) error{
 		return err
 	}
 
-	postSequence := `CREATE SEQUENCE IF NOT EXISTS post_path 
+	/*postSequence := `CREATE SEQUENCE IF NOT EXISTS post_path
 						INCREMENT 1 
  						MINVALUE 1 
     					MAXVALUE 9999999
@@ -63,15 +64,15 @@ func createTables(db *sql.DB) error{
 						CACHE 1;`
 	if _, err := db.Exec(postSequence); err != nil {
 		return err
-	}
+	}*/
 
 	postQuery := `CREATE TABLE IF NOT EXISTS posts (
     	id bigserial not null primary key,
-    	path varchar, 
+    	path   bigint[]  NOT NULL DEFAULT '{0}',
 		author varchar references users(nickname),
 		created timestamptz       DEFAULT now(),
 		forum varchar not null,
-		isEdited boolean,
+		isEdited boolean DEFAULT FALSE,
 		message varchar,
 		parent bigint,
 		thread integer,
@@ -81,12 +82,12 @@ func createTables(db *sql.DB) error{
 		return err
 	}
 
-	pathFunc := `CREATE OR REPLACE FUNCTION auto_id () returns varchar as $$
+	/*pathFunc := `CREATE OR REPLACE FUNCTION auto_id () returns varchar as $$
 						select TO_CHAR(nextval('post_path'::regclass),'fm0000000')
 					$$ language sql `
 	if _, err := db.Exec(pathFunc); err != nil {
 		return err
-	}
+	}*/
 
 	voteQuery := `CREATE TABLE IF NOT EXISTS votes (
     	id bigserial not null primary key,
@@ -99,7 +100,7 @@ func createTables(db *sql.DB) error{
 		return err
 	}
 
-	file, err := ioutil.ReadFile("./functions.sql")
+	file, err := ioutil.ReadFile("./internal/store/functions.sql")
 	if err != nil {
 		return err
 	}

@@ -4,32 +4,33 @@ import "time"
 
 type Forum struct {
 	ID		int64	`json:"-"`
-	Slug	string	`json:"slug"`
-	Title	string	`json:"title"`
-	User	string	`json:"user"`
-	Posts	int64	`json:"posts"`
-	Threads	int64	`json:"threads"`
+	Slug	string	`json:"slug,omitempty"`
+	Title	string	`json:"title,omitempty"`
+	User	string	`json:"user,omitempty"`
+	Posts	int64	`json:"posts,omitempty"`
+	Threads	int64	`json:"threads,omitempty"`
 }
 
 type Thread struct {
-	ID		int64		`json:"id"`
-	Forum	string		`json:"forum"`
-	Author	string		`json:"author"`
+	ID		int64		`json:"id,omitempty"`
+	Forum	string		`json:"forum,omitempty"`
+	Author	string		`json:"author,omitempty"`
 	Created	time.Time	`json:"created"`
-	Message	string		`json:"message"`
-	Title	string		`json:"title"`
-	Slug	string		`json:"slug"`
-	Votes	int64		`json:"votes"`
+	Message	string		`json:"message,omitempty"`
+	Title	string		`json:"title,omitempty"`
+	Slug	string		`json:"slug,omitempty"`
+	Votes	int64		`json:"votes,omitempty"`
 }
 
 type Post struct {
-	ID			int64		`json:"id"`
-	Author		string		`json:"author"`
-	Created 	string		`json:"created"`
-	Forum		string		`json:"forum"`
-	IsEdited	bool		`json:"isEdited"`
-	Message		string		`json:"message"`
+	ID			int64		`json:"id,omitempty"`
+	Author		string		`json:"author,omitempty"`
+	Created 	string		`json:"created,omitempty"`
+	Forum		string		`json:"forum,omitempty"`
+	IsEdited	bool		`json:"isEdited,omitempty"`
+	Message		string		`json:"message,omitempty"`
 	Parent		int64		`json:"parent"`
-	Thread		int64		`json:"thread"`
-	Slug		string		`json:"slug"`
+	Thread		int64		`json:"thread,omitempty"`
+	Slug		string		`json:"slug,omitempty"`
+	Path		[]int64		`json:"-"`
 }

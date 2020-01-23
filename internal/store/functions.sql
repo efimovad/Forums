@@ -1,9 +1,10 @@
+DROP TRIGGER IF EXISTS on_post_insert ON posts;
+DROP TRIGGER IF EXISTS on_thread_insert ON threads;
+
 CREATE TABLE IF NOT EXISTS forum_users (
     user_id BIGINT REFERENCES users(id),
     forum_id BIGINT REFERENCES forums(id)
 );
-
-ALTER SEQUENCE post_path RESTART;
 
 DROP TRIGGER IF EXISTS on_vote_insert ON votes;
 DROP TRIGGER IF EXISTS on_vote_update ON votes;
@@ -17,13 +18,11 @@ CREATE INDEX IF NOT EXISTS idx_threads_author ON threads (LOWER(author));
 
 CREATE INDEX IF NOT EXISTS idx_users_nickname ON users (LOWER(nickname));
 
-CREATE INDEX IF NOT EXISTS idx_posts_path ON posts (path);
-CREATE INDEX IF NOT EXISTS idx_posts_sub_path ON posts (substring(path,1,7));
-CREATE INDEX IF NOT EXISTS idx_thread ON posts (thread);
-CREATE INDEX IF NOT EXISTS idx_parent_thread ON posts (thread) WHERE parent = 0;
-
-CREATE INDEX IF NOT EXISTS idx_posts_author ON posts (LOWER(author));
-CREATE INDEX IF NOT EXISTS idx_posts_forum ON posts (LOWER(forum));
+CREATE INDEX IF NOT EXISTS idx_posts_path ON posts USING GIN (path);
+CREATE INDEX IF NOT EXISTS idx_posts_thread ON posts (thread);
+CREATE INDEX IF NOT EXISTS idx_posts_forum ON posts (forum);
+CREATE INDEX IF NOT EXISTS idx_posts_parent ON posts (parent);
+CREATE INDEX IF NOT EXISTS idx_posts_thread_id ON posts (thread, id);
 
 CREATE INDEX IF NOT EXISTS idx_votes_author ON votes (LOWER(nickname));
 CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_nickname_thread_unique ON votes (LOWER(nickname), thread);

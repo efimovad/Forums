@@ -35,7 +35,7 @@ USER root
 
 EXPOSE 5000
 
-COPY internal/store/functions.sql .
+COPY internal/store/functions.sql ./internal/store/functions.sql
 COPY --from=build /usr/src/tech-db/forum .
 
 CMD service postgresql start && ./forum --scheme=http --port=5000 --host=0.0.0.0 --database=postgres://docker:docker@localhost/docker

@@ -91,7 +91,7 @@ func (u *ForumUcase) CreatePosts(currForum string, posts []*models.Post) error {
 		return err
 	}
 
-	for _, elem := range posts {
+	/*for _, elem := range posts {
 		var parent *models.Post
 
 		if elem.Parent == 0 {
@@ -110,7 +110,11 @@ func (u *ForumUcase) CreatePosts(currForum string, posts []*models.Post) error {
 		/*_, err = u.userRep.FindByName(elem.Author)
 		if err != nil {
 			return errors.Wrap(errors.New(forum.NOT_FOUND_ERR + elem.Author), "userRep.FindByName()")
-		}*/
+		}
+	}*/
+
+	if len(posts) == 0 {
+		return nil
 	}
 
 	err = u.repository.CreatePosts(posts, t)
