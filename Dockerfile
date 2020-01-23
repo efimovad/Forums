@@ -3,7 +3,6 @@ FROM golang:1.13.4-stretch AS build
 WORKDIR /usr/src/tech-db
 
 COPY go.mod .
-COPY go.sum .
 RUN go mod download
 
 COPY . .
